@@ -113,7 +113,7 @@ module internal WorkerConfiguration =
             ] |> argParser.PrintCommandLineArgumentsFlat
 
     /// Asynchronously spawns a worker process with supplied configuration
-    let spawnAsync (nodeExecutable : string) (runAsBackground : bool) (config : WorkerConfiguration) = async {
+    let spawnAsync' (nodeExecutable : string) (runAsBackground : bool) (config : WorkerConfiguration) = async {
         use receiver =
             Receiver.create<WorkerStartupResult>()
             |> Receiver.rename (mkUUID())
@@ -148,7 +148,13 @@ module internal WorkerConfiguration =
         match result with
         | ProcessExit code -> return failwithf "Child process exited with error code %d." code
         | ProcessError e -> return raise <| new Exception("Child process responded with exception.", e)
-        | Success aref -> return aref
+        | Success aref -> return aref, cloudProcess
+    }
+
+    /// Asynchronously spawns a worker process with supplied configuration
+    let spawnAsync (nodeExecutable : string) (runAsBackground : bool) (config : WorkerConfiguration) = async {
+        let! aref, _ = spawnAsync' nodeExecutable runAsBackground config
+        return aref
     }
     
     /// Reply to spawning process with provided result

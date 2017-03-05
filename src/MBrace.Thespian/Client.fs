@@ -167,22 +167,58 @@ type ThespianWorker private (uri : string) =
     /// <param name="quiet">Suppress logging to stdout. Defaults to false.</param>
     /// <param name="heartbeatInterval">Specifies the default heartbeat interval emitted by the worker. Defaults to 500ms</param>
     /// <param name="heartbeatThreshold">Specifies the maximum time threshold of heartbeats after which the worker will be declared dead. Defaults to 10sec.</param>
-    static member SpawnAsync ([<O;D(null:obj)>]?hostname : string, [<O;D(null:obj)>]?port : int, [<O;D(null:obj)>]?workingDirectory : string, [<O;D(null:obj)>]?maxConcurrentWorkItems : int,
-                                [<O;D(null:obj)>]?maxLogWriteInterval : TimeSpan,
-                                [<O;D(null:obj)>]?logLevel : LogLevel, [<O;D(null:obj)>]?logFiles : seq<string>, [<O;D(null:obj)>]?useAppDomainIsolation : bool, [<O;D(null:obj)>]?runAsBackground : bool,
-                                [<O;D(null:obj)>]?quiet : bool, [<O;D(null:obj)>]?heartbeatInterval : TimeSpan, [<O;D(null:obj)>]?heartbeatThreshold : TimeSpan) =
+    static member SpawnAsync' ([<O;D(null:obj)>]?hostname : string, [<O;D(null:obj)>]?port : int, [<O;D(null:obj)>]?workingDirectory : string, [<O;D(null:obj)>]?maxConcurrentWorkItems : int,
+                               [<O;D(null:obj)>]?maxLogWriteInterval : TimeSpan,
+                               [<O;D(null:obj)>]?logLevel : LogLevel, [<O;D(null:obj)>]?logFiles : seq<string>, [<O;D(null:obj)>]?useAppDomainIsolation : bool, [<O;D(null:obj)>]?runAsBackground : bool,
+                               [<O;D(null:obj)>]?quiet : bool, [<O;D(null:obj)>]?heartbeatInterval : TimeSpan, [<O;D(null:obj)>]?heartbeatThreshold : TimeSpan) =
         async {
             let exe = ThespianWorker.LocalExecutable
             let logFiles = match logFiles with None -> [] | Some ls -> Seq.toList ls
             let runAsBackground = defaultArg runAsBackground false
             let config = 
                 { MaxConcurrentWorkItems = maxConcurrentWorkItems ; UseAppDomainIsolation = useAppDomainIsolation ;
-                    Hostname = hostname ; Port = port ; WorkingDirectory = workingDirectory ; MaxLogWriteInterval = maxLogWriteInterval ;
-                    LogLevel = logLevel ; LogFiles = logFiles ; Parent = None ; Quiet = defaultArg quiet false ;
-                    HeartbeatInterval = heartbeatInterval ; HeartbeatThreshold = heartbeatThreshold }
+                  Hostname = hostname ; Port = port ; WorkingDirectory = workingDirectory ; MaxLogWriteInterval = maxLogWriteInterval ;
+                  LogLevel = logLevel ; LogFiles = logFiles ; Parent = None ; Quiet = defaultArg quiet false ;
+                  HeartbeatInterval = heartbeatInterval ; HeartbeatThreshold = heartbeatThreshold }
 
-            let! ref = spawnAsync exe runAsBackground config
-            return new ThespianWorker(mkUri ref)
+            let! ref, proc = spawnAsync' exe runAsBackground config
+            return new ThespianWorker(mkUri ref), proc
+        }
+
+    /// <summary>
+    ///     Asynchronously spawns a new worker process in the current machine with supplied configuration parameters.
+    /// </summary>
+    /// <param name="hostname">Hostname or IP address on which the worker will be listening to.</param>
+    /// <param name="port">Master TCP port used by the worker. Defaults to self-assigned.</param>
+    /// <param name="workingDirectory">Working directory used by the worker. Defaults to system temp folder.</param>
+    /// <param name="maxConcurrentWorkItems">Maximum number of concurrent work items executed if running as slave node. Defaults to 20.</param>
+    /// <param name="maxLogWriteInterval">Maximum interval in which new log entries are to be persisted to store. Defaults to 1 seconds.</param>
+    /// <param name="logLevel">Loglevel used by the worker process. Defaults to no log level.</param>
+    /// <param name="logFiles">Paths to text logfiles written to by worker process.</param>
+    /// <param name="useAppDomainIsolation">Use AppDomain isolation when executing cloud work items. Defaults to true.</param>
+    /// <param name="runAsBackground">Run as background process. Defaults to false.</param>
+    /// <param name="quiet">Suppress logging to stdout. Defaults to false.</param>
+    /// <param name="heartbeatInterval">Specifies the default heartbeat interval emitted by the worker. Defaults to 500ms</param>
+    /// <param name="heartbeatThreshold">Specifies the maximum time threshold of heartbeats after which the worker will be declared dead. Defaults to 10sec.</param>
+    static member SpawnAsync ([<O;D(null:obj)>]?hostname : string, [<O;D(null:obj)>]?port : int, [<O;D(null:obj)>]?workingDirectory : string, [<O;D(null:obj)>]?maxConcurrentWorkItems : int,
+                                [<O;D(null:obj)>]?maxLogWriteInterval : TimeSpan,
+                                [<O;D(null:obj)>]?logLevel : LogLevel, [<O;D(null:obj)>]?logFiles : seq<string>, [<O;D(null:obj)>]?useAppDomainIsolation : bool, [<O;D(null:obj)>]?runAsBackground : bool,
+                                [<O;D(null:obj)>]?quiet : bool, [<O;D(null:obj)>]?heartbeatInterval : TimeSpan, [<O;D(null:obj)>]?heartbeatThreshold : TimeSpan) =
+        async {
+            let! worker, _ = ThespianWorker.SpawnAsync'(
+                                ?hostname = hostname,
+                                ?port = port,
+                                ?workingDirectory = workingDirectory,
+                                ?maxConcurrentWorkItems = maxConcurrentWorkItems,
+                                ?maxLogWriteInterval = maxLogWriteInterval,
+                                ?logLevel = logLevel,
+                                ?logFiles = logFiles,
+                                ?useAppDomainIsolation = useAppDomainIsolation,
+                                ?runAsBackground = runAsBackground,
+                                ?quiet = quiet,
+                                ?heartbeatInterval = heartbeatInterval,
+                                ?heartbeatThreshold = heartbeatThreshold)
+            return worker
         }
 
     /// <summary>
@@ -200,17 +236,42 @@ type ThespianWorker private (uri : string) =
     /// <param name="quiet">Suppress logging to stdout. Defaults to false.</param>
     /// <param name="heartbeatInterval">Specifies the default heartbeat interval emitted by the worker. Defaults to 500ms</param>
     /// <param name="heartbeatThreshold">Specifies the maximum time threshold of heartbeats after which the worker will be declared dead. Defaults to 10sec.</param>
-    static member Spawn ([<O;D(null:obj)>]?hostname : string, [<O;D(null:obj)>]?port : int, [<O;D(null:obj)>]?workingDirectory : string, [<O;D(null:obj)>]?maxConcurrentWorkItems : int,
-                            [<O;D(null:obj)>]?maxLogWriteInterval : TimeSpan,
-                            [<O;D(null:obj)>]?logLevel : LogLevel, [<O;D(null:obj)>]?logFiles : seq<string>, [<O;D(null:obj)>]?useAppDomainIsolation : bool, [<O;D(null:obj)>]?runAsBackground : bool,
-                            [<O;D(null:obj)>]?quiet : bool, [<O;D(null:obj)>]?heartbeatInterval : TimeSpan, [<O;D(null:obj)>]?heartbeatThreshold : TimeSpan) =
+    static member Spawn' ([<O;D(null:obj)>]?hostname : string, [<O;D(null:obj)>]?port : int, [<O;D(null:obj)>]?workingDirectory : string, [<O;D(null:obj)>]?maxConcurrentWorkItems : int,
+                          [<O;D(null:obj)>]?maxLogWriteInterval : TimeSpan,
+                          [<O;D(null:obj)>]?logLevel : LogLevel, [<O;D(null:obj)>]?logFiles : seq<string>, [<O;D(null:obj)>]?useAppDomainIsolation : bool, [<O;D(null:obj)>]?runAsBackground : bool,
+                          [<O;D(null:obj)>]?quiet : bool, [<O;D(null:obj)>]?heartbeatInterval : TimeSpan, [<O;D(null:obj)>]?heartbeatThreshold : TimeSpan) =
 
-        ThespianWorker.SpawnAsync(?hostname = hostname, ?port = port, ?maxConcurrentWorkItems = maxConcurrentWorkItems, ?logLevel = logLevel, 
-                                    ?maxLogWriteInterval = maxLogWriteInterval, ?workingDirectory = workingDirectory,
-                                    ?logFiles = logFiles, ?runAsBackground = runAsBackground, ?useAppDomainIsolation = useAppDomainIsolation,
-                                    ?quiet = quiet, ?heartbeatInterval = heartbeatInterval, ?heartbeatThreshold = heartbeatThreshold)
+        ThespianWorker.SpawnAsync'(?hostname = hostname, ?port = port, ?maxConcurrentWorkItems = maxConcurrentWorkItems, ?logLevel = logLevel, 
+                                   ?maxLogWriteInterval = maxLogWriteInterval, ?workingDirectory = workingDirectory,
+                                   ?logFiles = logFiles, ?runAsBackground = runAsBackground, ?useAppDomainIsolation = useAppDomainIsolation,
+                                   ?quiet = quiet, ?heartbeatInterval = heartbeatInterval, ?heartbeatThreshold = heartbeatThreshold)
         |> Async.RunSync
 
+    /// <summary>
+    ///     Spawns a new worker process in the current machine with supplied configuration parameters.
+    /// </summary>
+    /// <param name="hostname">Hostname or IP address on which the worker will be listening to.</param>
+    /// <param name="port">Master TCP port used by the worker. Defaults to self-assigned.</param>
+    /// <param name="workingDirectory">Working directory used by the worker. Defaults to system temp folder.</param>
+    /// <param name="maxConcurrentWorkItems">Maximum number of concurrent work items executed if running as slave node. Defaults to 20.</param>
+    /// <param name="maxLogWriteInterval">Maximum interval in which new log entries are to be persisted to store. Defaults to 1 seconds.</param>
+    /// <param name="logLevel">Loglevel used by the worker process. Defaults to no log level.</param>
+    /// <param name="logFiles">Paths to text logfiles written to by worker process.</param>
+    /// <param name="useAppDomainIsolation">Use AppDomain isolation when executing cloud work items. Defaults to true.</param>
+    /// <param name="runAsBackground">Run as background process. Defaults to false.</param>
+    /// <param name="quiet">Suppress logging to stdout. Defaults to false.</param>
+    /// <param name="heartbeatInterval">Specifies the default heartbeat interval emitted by the worker. Defaults to 500ms</param>
+    /// <param name="heartbeatThreshold">Specifies the maximum time threshold of heartbeats after which the worker will be declared dead. Defaults to 10sec.</param>
+    static member Spawn ([<O;D(null:obj)>]?hostname : string, [<O;D(null:obj)>]?port : int, [<O;D(null:obj)>]?workingDirectory : string, [<O;D(null:obj)>]?maxConcurrentWorkItems : int,
+                         [<O;D(null:obj)>]?maxLogWriteInterval : TimeSpan,
+                         [<O;D(null:obj)>]?logLevel : LogLevel, [<O;D(null:obj)>]?logFiles : seq<string>, [<O;D(null:obj)>]?useAppDomainIsolation : bool, [<O;D(null:obj)>]?runAsBackground : bool,
+                         [<O;D(null:obj)>]?quiet : bool, [<O;D(null:obj)>]?heartbeatInterval : TimeSpan, [<O;D(null:obj)>]?heartbeatThreshold : TimeSpan) =
+
+        ThespianWorker.SpawnAsync(?hostname = hostname, ?port = port, ?maxConcurrentWorkItems = maxConcurrentWorkItems, ?logLevel = logLevel, 
+                                  ?maxLogWriteInterval = maxLogWriteInterval, ?workingDirectory = workingDirectory,
+                                  ?logFiles = logFiles, ?runAsBackground = runAsBackground, ?useAppDomainIsolation = useAppDomainIsolation,
+                                  ?quiet = quiet, ?heartbeatInterval = heartbeatInterval, ?heartbeatThreshold = heartbeatThreshold)
+        |> Async.RunSync
 
 /// MBrace.Thespian client object used to manage cluster and submit work items for computation.
 [<AutoSerializable(false)>]
